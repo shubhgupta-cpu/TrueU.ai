@@ -10,6 +10,7 @@ import {
   list,
   lit,
   nowIso,
+  str,
   T,
   updateOne,
 } from '../airtable.js';
@@ -20,6 +21,7 @@ import {
   toContentItem,
   toJob,
   toProject,
+  toProjectTranscript,
   toProjectVideo,
   toScriptVersion,
   toTopic,
@@ -44,7 +46,8 @@ export async function projectDetail(id: string): Promise<ProjectDetail | null> {
   const setIds = (rec.fields['Caption Sets'] as string[] | undefined) ?? [];
   const jobIds = (rec.fields['Jobs'] as string[] | undefined) ?? [];
   const topicId = (rec.fields['Topic'] as string[] | undefined)?.[0];
-  const [scripts, blogs, sets, jobs, topicRec, videos] = await Promise.all([
+  const transcriptIds = (rec.fields['Transcripts'] as string[] | undefined) ?? [];
+  const [scripts, blogs, sets, jobs, topicRec, videos, transcripts] = await Promise.all([
     scriptIds.length ? list(T.scriptVersions, { filterByFormula: byIds(scriptIds) }) : [],
     blogIds.length ? list(T.blogVersions, { filterByFormula: byIds(blogIds) }) : [],
     setIds.length ? list(T.captionSets, { filterByFormula: byIds(setIds) }) : [],
@@ -52,6 +55,7 @@ export async function projectDetail(id: string): Promise<ProjectDetail | null> {
     jobIds.length ? list(T.jobs, { filterByFormula: byIds(jobIds.slice(-60)) }) : [],
     topicId ? get(T.topics, topicId) : null,
     list(T.assets, { filterByFormula: eq('Current', true) }),
+    transcriptIds.length ? list(T.transcripts, { filterByFormula: byIds(transcriptIds) }) : [],
   ]);
   const socialSets = sets.filter((s) => (s.fields['Kind'] ?? 'social') === 'social');
   const kindSets = [
@@ -99,6 +103,18 @@ export async function projectDetail(id: string): Promise<ProjectDetail | null> {
     ),
     jobs: jobs.map(toJob).sort((a, b) => b.created_at.localeCompare(a.created_at)),
     videos: videos.filter((v) => link(v.fields, 'Project') === id).map(toProjectVideo),
+    // The newest transcript per video.
+    transcripts: [
+      ...new Map(
+        [...transcripts]
+          .sort((a, b) =>
+            (str(a.fields, 'Requested At') ?? '').localeCompare(
+              str(b.fields, 'Requested At') ?? '',
+            ),
+          )
+          .map((r) => [str(r.fields, 'Role') ?? '', toProjectTranscript(r)] as const),
+      ).values(),
+    ],
   };
 }
 

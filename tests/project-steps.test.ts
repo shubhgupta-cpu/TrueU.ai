@@ -35,6 +35,7 @@ function project(over: Partial<ProjectDetail> = {}): ProjectDetail {
     ctas: emptySet,
     polls: emptySet,
     videos: [],
+    transcripts: [],
     jobs: [],
     ...over,
   };

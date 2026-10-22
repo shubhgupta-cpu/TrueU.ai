@@ -11,6 +11,7 @@ import type {
   SeedKeyword,
   Topic,
   TopicScore,
+  ProjectTranscript,
   ProjectVideo,
   ScheduledPost,
   ScriptVersion,
@@ -243,6 +244,14 @@ export function toProjectVideo(r: AtRecord): ProjectVideo {
     role: str(r.fields, 'Role') ?? 'other',
     settled: !!str(r.fields, 'Settled At'),
     detected_at: str(r.fields, 'Detected At') ?? created(r),
+  };
+}
+
+export function toProjectTranscript(r: AtRecord): ProjectTranscript {
+  return {
+    role: str(r.fields, 'Role') ?? '',
+    status: (str(r.fields, 'Status') ?? 'queued') as ProjectTranscript['status'],
+    error: str(r.fields, 'Error'),
   };
 }
 

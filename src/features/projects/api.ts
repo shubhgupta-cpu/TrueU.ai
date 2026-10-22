@@ -85,6 +85,10 @@ export function useSetVideosFolder(id: string) {
   );
 }
 
+export function useRetryTranscripts(id: string) {
+  return useProjectAction<void>(id, () => api(`/projects/${id}/transcribe`, { method: 'POST' }));
+}
+
 export function useScanVideos(id: string) {
   return useProjectAction<void>(id, () => api(`/projects/${id}/scan`, { method: 'POST' }));
 }

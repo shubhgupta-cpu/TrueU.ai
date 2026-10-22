@@ -1,3 +1,5 @@
+import { ArrowLeft } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Link, useParams } from 'react-router-dom';
 import { PageHeader } from '@/components/page-header';
 import { Card } from '@/components/ui/card';
@@ -15,12 +17,12 @@ export default function ProjectSchedulePage() {
         title="Schedule"
         description="The Day 1–15 posting plan for this project."
         actions={
-          <Link
-            to={`/projects/${id}`}
-            className="inline-flex min-h-touch items-center text-sm text-accent underline"
-          >
-            Back to project
-          </Link>
+          <Button asChild variant="outline">
+            <Link to={`/projects/${id}`}>
+              <ArrowLeft aria-hidden className="h-4 w-4" />
+              Back to project
+            </Link>
+          </Button>
         }
       />
       <Card className="mt-6 max-w-md p-4">

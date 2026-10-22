@@ -51,7 +51,7 @@ export function PreviewsPanel({ projectId }: { projectId: string }) {
       {shown.length === 0 ? (
         <p className="text-sm text-muted">No captions generated for this video yet.</p>
       ) : (
-        <div className="flex flex-wrap items-start gap-4">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,300px))] items-stretch gap-4">
           {shown.map((p) => (
             <PostPreviewCard key={p.key} post={p} />
           ))}

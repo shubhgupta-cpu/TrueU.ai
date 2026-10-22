@@ -1,13 +1,20 @@
-import { Plus, Sparkles, TrendingUp } from 'lucide-react';
+import { Plus, Sparkles, Trash2, TrendingUp } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { useCoreSettings } from '@/features/settings/api';
-import { useGenerateTopics, usePullTrends, useTopicJobs, useTopics } from '@/features/topics/api';
+import {
+  type Topic,
+  useGenerateTopics,
+  usePullTrends,
+  useTopicJobs,
+  useTopics,
+} from '@/features/topics/api';
 import { StatCards } from '@/features/topics/components/stat-cards';
 import { SubmitTopicDialog } from '@/features/topics/components/submit-topic-dialog';
 import { TopicFilterBar } from '@/features/topics/components/topic-filters';
+import { DeleteTopicsDialog } from '@/features/topics/components/delete-topics-dialog';
 import { TopicList } from '@/features/topics/components/topic-list';
 import { defaultFilters, filterTopics, monthOptions, topicStats } from '@/features/topics/logic';
 import { cycleMonth, formatDateTime } from '@/lib/time';
@@ -45,6 +52,8 @@ export default function InboxPage() {
   const navigate = useNavigate();
   const [filters, setFilters] = useState(defaultFilters);
   const [submitOpen, setSubmitOpen] = useState(false);
+  const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
+  const [toDelete, setToDelete] = useState<Topic[] | null>(null);
   const [params] = useSearchParams();
   const [error, setError] = useState<string | null>(null);
 
@@ -148,14 +157,66 @@ export default function InboxPage() {
             <span className="font-mono">{visible.length}</span> of{' '}
             <span className="font-mono">{all.length}</span> topics
           </p>
+          {picked.size > 0 && (
+            <div
+              role="region"
+              aria-label="Selected topics"
+              className="mb-3 flex flex-wrap items-center gap-3 rounded-lg border border-accent/30 bg-accent-soft px-4 py-2"
+            >
+              <p className="text-sm font-medium">
+                <span className="font-mono">{picked.size}</span> selected
+              </p>
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={() => setToDelete(all.filter((t) => picked.has(t.id)))}
+              >
+                <Trash2 aria-hidden className="h-4 w-4" /> Delete selected
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setPicked(new Set())}>
+                Clear selection
+              </Button>
+            </div>
+          )}
           <TopicList
             topics={visible}
             selectedId={null}
             onSelect={openTopic}
             scoreMax={settings.scoreMax}
+            picked={picked}
+            onPick={(id) =>
+              setPicked((s) => {
+                const next = new Set(s);
+                if (!next.delete(id)) next.add(id);
+                return next;
+              })
+            }
+            onPickAll={(checked) =>
+              setPicked((s) => {
+                const next = new Set(s);
+                for (const t of visible) {
+                  if (checked) next.add(t.id);
+                  else next.delete(t.id);
+                }
+                return next;
+              })
+            }
+            onDelete={(t) => setToDelete([t])}
           />
         </div>
       )}
+
+      <DeleteTopicsDialog
+        topics={toDelete}
+        onClose={() => setToDelete(null)}
+        onDeleted={(ids) =>
+          setPicked((s) => {
+            const next = new Set(s);
+            for (const id of ids) next.delete(id);
+            return next;
+          })
+        }
+      />
 
       <SubmitTopicDialog
         open={submitOpen}

@@ -62,6 +62,7 @@ import {
 } from './repo/projects.js';
 import { timingSafeEqual } from 'node:crypto';
 import { applyCallback, queueDue } from './jobs/publish.js';
+import { retryTranscripts, syncTranscripts } from './jobs/transcripts.js';
 import { projectPreviews, videoLinkTarget } from './repo/previews.js';
 import { temporaryLink } from './dropbox.js';
 import { platformRules, templateSlots, updateSlot } from './repo/config.js';
@@ -528,6 +529,12 @@ route('PATCH', '/api/projects/:id/videos-folder', async (req, { id }) => {
     { dedupeKey: `scan_uploads:manual:${id}`, projectId: id! },
   );
   return json({ ok: true });
+});
+
+/** Retry the video transcripts that failed (a fresh download link, then the worker runs again). */
+route('POST', '/api/projects/:id/transcribe', async (req, { id }) => {
+  await requireUser(req);
+  return json({ requeued: await retryTranscripts(id!) });
 });
 
 /** "Check Dropbox now": looks for the editor's videos right away instead of waiting for the 5-minute check. */
@@ -1188,6 +1195,9 @@ route('GET', '/api/cron/minute', async (req) => {
   requireCron(req);
   const now = new Date();
   const posts = await queueDue(now);
+  const transcripts = await syncTranscripts().catch((err) => ({
+    error: String(err).slice(0, 120),
+  }));
   const slot = Math.floor(now.getTime() / 300_000);
   try {
     await enqueue(
@@ -1198,7 +1208,7 @@ route('GET', '/api/cron/minute', async (req) => {
   } catch (err) {
     if (!(err instanceof DuplicateJobError)) throw err;
   }
-  return json({ posts, ...(await sweep()) });
+  return json({ posts, transcripts, ...(await sweep()) });
 });
 
 /** Make.com reports back after posting to Metricool (header X-Cockpit-Secret). */

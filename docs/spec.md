@@ -257,6 +257,8 @@ planned → waiting_approval → queued → sent → scheduled → published
 - **F9.4 Before publishing.** `{{youtube_embed}}` is replaced with the live YouTube URL once the long video's post reports `published`. Blog publishing waits for that.
 - **Done when:** the blog can't be scheduled while the placeholder is unresolved, unless the owner overrides it.
 
+> **Update 2026-10-22 (video transcripts):** once the editor's videos are uploaded, the app has them transcribed (Python worker, see CLAUDE.md "Video transcripts") and the YouTube metadata uses the real length, a summary of what is said and chapter candidates at the real times, instead of the script's scene timings. Approved metadata is not replaced automatically.
+
 ### 5.10 Content Pack (F10)
 - **F10.0 Social captions (built).** Once the approved blog is saved to Dropbox, `generate_captions` runs the client's **Social Media Content Generator v2.4** (`captions_generate`): 28 posts per topic — LinkedIn, Instagram, X/Twitter, Facebook, Pinterest and Threads with an image post plus Video 1–3 (= Short 1–3) each; a LinkedIn carousel (image only); Reels/TikTok (Video 1–3 only). Each post has its graphic text (quote / Pinterest title / carousel cover and slides), caption and exactly 3 hashtags.
   - **Airtable:** each run is a `Caption Sets` record (full JSON, version, inputs, notes); each post is a `Content Items` record linked to it (Channel, Post, Platform, Asset Role, Title = graphic text, Caption, Hashtags, Extra, Validation, Status).

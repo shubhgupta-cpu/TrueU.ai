@@ -23,6 +23,7 @@ export const T = {
   scheduleSlots: 'Schedule Slots',
   scheduledPosts: 'Scheduled Posts',
   assets: 'Assets',
+  transcripts: 'Transcripts',
   projects: 'Projects',
   scriptVersions: 'Script Versions',
   blogVersions: 'Blog Versions',

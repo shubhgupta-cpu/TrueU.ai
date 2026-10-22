@@ -8,7 +8,13 @@ import { itemStatus } from '@/lib/status';
 import { formatDateTime } from '@/lib/time';
 import { cn } from '@/lib/utils';
 import type { ContentItem, ProjectDetail } from '@/types/api';
-import { useApproveAllCaptions, useApproveItem, useRegenerateYouTube, useRejectItem } from '../api';
+import {
+  useApproveAllCaptions,
+  useApproveItem,
+  useRegenerateYouTube,
+  useRejectItem,
+  useRetryTranscripts,
+} from '../api';
 
 const VIDEOS = [
   { key: 'long_video', label: 'Long video' },
@@ -195,6 +201,96 @@ function VideoCard({
 }
 
 /** YouTube SEO metadata (F10.1): long video + 3 shorts, written from the approved script. */
+const ROLE_OF: Record<string, string> = {
+  long_video: 'long_video',
+  video_1: 'short_1',
+  video_2: 'short_2',
+  video_3: 'short_3',
+};
+const ROLE_LABEL: Record<string, string> = {
+  long_video: 'long video',
+  short_1: 'Short 1',
+  short_2: 'Short 2',
+  short_3: 'Short 3',
+};
+
+/** Where the timestamps and description come from, and what to do when the uploaded video says something else. */
+function TranscriptBanner({
+  project,
+  generating,
+}: {
+  project: ProjectDetail;
+  generating: boolean;
+}) {
+  const regenerate = useRegenerateYouTube(project.id);
+  const retry = useRetryTranscripts(project.id);
+  const ts = project.transcripts;
+  const working = ts.filter((t) => t.status === 'queued' || t.status === 'running');
+  const failed = ts.filter((t) => t.status === 'failed');
+  const ready = new Set(ts.filter((t) => t.status === 'done').map((t) => t.role));
+  // Videos whose transcript is ready but whose metadata was written from the script.
+  const outdated = project.youtube.items.filter(
+    (i) => i.post && ready.has(ROLE_OF[i.post] ?? '') && i.extra['source'] !== 'video',
+  );
+  const fromVideo = project.youtube.items.filter((i) => i.extra['source'] === 'video');
+  if (!ts.length && !fromVideo.length) return null;
+  return (
+    <div
+      className="space-y-2 rounded-md border border-line bg-ground p-3 text-sm"
+      aria-live="polite"
+    >
+      {working.length > 0 && (
+        <p>
+          <strong>
+            Transcribing the uploaded {working.map((t) => ROLE_LABEL[t.role] ?? t.role).join(', ')}…
+          </strong>{' '}
+          The timestamps and description are rewritten from what is really said, when it finishes (a
+          few minutes).
+        </p>
+      )}
+      {failed.length > 0 && (
+        <div role="alert" className="space-y-1 text-danger">
+          <p>
+            Couldn’t transcribe {failed.map((t) => ROLE_LABEL[t.role] ?? t.role).join(', ')}:{' '}
+            {failed[0]?.error ?? 'unknown error'}
+          </p>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={retry.isPending}
+            onClick={() => retry.mutate()}
+          >
+            Try again
+          </Button>
+        </div>
+      )}
+      {fromVideo.length > 0 && outdated.length === 0 && working.length === 0 && (
+        <p className="text-success">
+          Written from the uploaded video’s transcript (
+          {fromVideo.map((i) => ROLE_LABEL[ROLE_OF[i.post ?? ''] ?? ''] ?? '').join(', ')}): the
+          chapter times match the video.
+        </p>
+      )}
+      {outdated.length > 0 && (
+        <div className="space-y-2">
+          <p>
+            A transcript of the uploaded video is ready, but the{' '}
+            {outdated.map((i) => ROLE_LABEL[ROLE_OF[i.post ?? ''] ?? ''] ?? '').join(', ')} metadata
+            was written from the script, so its timestamps may not match the video.
+          </p>
+          <Button
+            size="sm"
+            disabled={regenerate.isPending || generating}
+            onClick={() => regenerate.mutate({ notes: '' })}
+          >
+            Regenerate from video
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function YouTubePanel({ project, timeZone }: { project: ProjectDetail; timeZone: string }) {
   const { set, items } = project.youtube;
   const [video, setVideo] = useState<VideoKey>('long_video');
@@ -228,6 +324,8 @@ export function YouTubePanel({ project, timeZone }: { project: ProjectDetail; ti
           </span>
         )}
       </div>
+
+      <TranscriptBanner project={project} generating={generating} />
 
       {!set && !generating && !failed && (
         <p className="text-sm text-muted">

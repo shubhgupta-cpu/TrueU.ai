@@ -268,6 +268,8 @@ export interface ProjectDetail extends Project {
   polls: { set: CaptionSet | null; items: ContentItem[]; versions: number };
   /** The editor's videos found in Dropbox (current files only). */
   videos: ProjectVideo[];
+  /** Speech-to-text of those videos (latest per video), used for the YouTube chapters and description. */
+  transcripts: ProjectTranscript[];
   jobs: Job[];
 }
 
@@ -396,4 +398,11 @@ export interface TemplateSlot {
   local_time: string;
   notes: string | null;
   best_time: boolean;
+}
+
+export interface ProjectTranscript {
+  /** long_video or short_1..3 */
+  role: string;
+  status: 'queued' | 'running' | 'done' | 'failed';
+  error: string | null;
 }

@@ -1,0 +1,36 @@
+# Transcribes the editor's uploaded videos. The app starts this (workflow_dispatch) when a video needs a
+# transcript; it reads the queued rows from Airtable, so no input is passed (a public repo's logs are public).
+name: Transcribe videos
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+# One run at a time: a second request waits for the first, which already takes every queued row.
+concurrency:
+  group: transcribe
+  cancel-in-progress: false
+jobs:
+  transcribe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: worker/requirements.txt
+      - name: Install ffmpeg
+        run: sudo apt-get update -y -qq && sudo apt-get install -y -qq ffmpeg
+      - name: Cache the speech model
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: whisper-small-v1
+      - run: pip install -r worker/requirements.txt
+      - run: python -m unittest discover worker
+      - name: Transcribe
+        run: python worker/transcribe.py
+        env:
+          AIRTABLE_TOKEN: ${{ secrets.AIRTABLE_TOKEN }}
+          AIRTABLE_BASE_ID: ${{ secrets.AIRTABLE_BASE_ID }}

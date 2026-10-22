@@ -17,6 +17,8 @@ import {
 } from '../airtable.js';
 import { runPrompt } from '../claude.js';
 import { activity } from '../log.js';
+import { applyTranscript } from '../transcripts.js';
+import { loadTranscripts } from './transcripts.js';
 import { loadProject, setProjectStatus } from '../repo/projects.js';
 import { loadTopic } from '../repo/topics.js';
 import { Script } from '../schemas/script.js';
@@ -77,10 +79,12 @@ export const generateYouTube: JobHandler = {
       throw new PermanentJobError('There’s no YouTube metadata yet to regenerate one video of.');
 
     const videos = video ? [video] : [...YT_VIDEOS];
+    // What the finished videos really say (Python worker), per video; absent until they are uploaded.
+    const transcripts = await loadTranscripts(project.id);
     // The four videos are independent: run them side by side.
     const results = await Promise.all(
       videos.map(async (v) => {
-        const input = youtubeInput({
+        const scriptInput = youtubeInput({
           video: v,
           topicTitle: topic?.title ?? project.title,
           category: topic?.category ?? null,
@@ -88,6 +92,11 @@ export const generateYouTube: JobHandler = {
           evaluation,
           videoId: videoId(project.cycle_month, project.sequence, v),
         });
+        // Timing and summary come from the video itself when its transcript is ready, else from the script.
+        const tx = transcripts.get(v === 'long_video' ? 'long_video' : `short_${v.slice(-1)}`);
+        const input = tx
+          ? applyTranscript(scriptInput, v, { segments: tx.segments, durationSec: tx.durationSec })
+          : scriptInput;
         const { duration_seconds, ...vars } = input;
         const run = await runPrompt(
           'youtube_metadata_generate',
@@ -98,7 +107,13 @@ export const generateYouTube: JobHandler = {
             projectId: project.id,
           },
         );
-        return { video: v, input, durationSec: duration_seconds, run };
+        return {
+          video: v,
+          input,
+          durationSec: duration_seconds,
+          run,
+          source: tx ? 'video' : 'script',
+        };
       }),
     );
 
@@ -185,6 +200,8 @@ export const generateYouTube: JobHandler = {
             language: m.language,
             video_id: m.video_id,
             duration: r.input.video_duration,
+            /** Where the timing and summary came from: the uploaded video's transcript, or the script. */
+            source: r.source,
           }),
           Status: warnings.length ? 'needs_edit' : 'draft',
           Version: version,
@@ -198,6 +215,10 @@ export const generateYouTube: JobHandler = {
         };
       }),
     );
+
+    // These transcripts are now used: the automatic rewrite must not run again for them.
+    for (const t of transcripts.values())
+      await updateOne(T.transcripts, t.rowId, { 'Used At': nowIso() });
 
     const flagged = created.filter((c) => c.fields['Status'] === 'needs_edit').length;
     const fresh = await loadProject(project.id);
