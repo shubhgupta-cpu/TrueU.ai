@@ -49,9 +49,13 @@ describe('access changes', () => {
     { id: 'b', role: 'admin' as const, active: true },
     { id: 'c', role: 'owner' as const, active: true },
   ];
-  it('blocks removing or demoting yourself', () => {
+  it('blocks removing your own access', () => {
     expect(accessChangeError(users, 'a', 'a', 'remove')).toMatch(/own access/);
-    expect(accessChangeError(users, 'a', 'a', { role: 'editor' })).toMatch(/own role/);
+  });
+  it('lets you change your own role only while another admin remains', () => {
+    expect(accessChangeError(users, 'a', 'a', { role: 'owner' })).toBeNull();
+    const alone = [users[0]!, users[2]!];
+    expect(accessChangeError(alone, 'a', 'a', { role: 'owner' })).toMatch(/only admin/);
   });
   it('keeps at least one active admin', () => {
     expect(accessChangeError(users, 'b', 'a', 'remove')).toBeNull();

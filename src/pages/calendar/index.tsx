@@ -28,8 +28,11 @@ export default function CalendarPage() {
         </p>
         <ul className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {projects.map((p) => (
-            <li key={p.id} className="rounded-lg border border-line bg-surface p-4">
-              <p className="mb-3 font-medium">{p.title}</p>
+            <li key={p.id} className="flex flex-col rounded-lg border border-line bg-surface p-4">
+              {/* Two lines at most, so every card's dropdowns and button sit at the same height. */}
+              <p title={p.title} className="mb-3 line-clamp-2 min-h-[3rem] font-medium">
+                {p.title}
+              </p>
               <PostingWeek projectId={p.id} />
             </li>
           ))}

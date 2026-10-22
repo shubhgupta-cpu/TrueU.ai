@@ -64,6 +64,8 @@ import { timingSafeEqual } from 'node:crypto';
 import { applyCallback, queueDue } from './jobs/publish.js';
 import { projectPreviews, videoLinkTarget } from './repo/previews.js';
 import { temporaryLink } from './dropbox.js';
+import { platformRules, templateSlots, updateSlot } from './repo/config.js';
+import { integrationChecks } from './repo/integrations.js';
 import {
   changeRole,
   createUser,
@@ -228,6 +230,39 @@ route('POST', '/api/admin/users/:id/revoke', async (req, { id }) => {
 route('POST', '/api/admin/users/:id/reset-password', async (req, { id }) => {
   const admin = await requireUser(req, ['admin']);
   return json({ password: await resetPassword(id!, admin.id) });
+});
+
+route('GET', '/api/admin/integrations', async (req) => {
+  await requireUser(req, ['admin']);
+  return json(await integrationChecks());
+});
+
+route('GET', '/api/admin/platforms', async (req) => {
+  await requireUser(req, ['admin']);
+  return json(platformRules());
+});
+
+route('GET', '/api/admin/schedule-slots', async (req) => {
+  await requireUser(req, ['admin']);
+  return json(await templateSlots());
+});
+
+/** Changes one slot of the default plan. Applies to schedules built afterwards, not to existing ones. */
+route('PATCH', '/api/admin/schedule-slots/:id', async (req, { id }) => {
+  const user = await requireUser(req, ['admin']);
+  const v = await readBody(
+    req,
+    z.object({
+      local_time: z
+        .string()
+        .regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Use HH:MM, for example 14:00')
+        .optional(),
+      day: z.number().int().min(1).max(15).optional(),
+      asset_role: z.enum(['long_video', 'short_1', 'short_2', 'short_3']).optional(),
+    }),
+  );
+  await updateSlot(id!, v, user.id);
+  return json({ ok: true });
 });
 
 route('GET', '/api/admin/usage', async (req) => {

@@ -27,7 +27,7 @@ export const layoutOf = (platform: string): PreviewLayout =>
           : 'feed';
 
 /** Characters visible before the platform folds the text behind "more". */
-const VISIBLE: Record<string, number> = {
+export const VISIBLE_CHARS: Record<string, number> = {
   youtube: 157,
   instagram_reels: 125,
   instagram_feed: 125,
@@ -42,7 +42,7 @@ const VISIBLE: Record<string, number> = {
 
 /** The text the platform shows first, and whether the rest is folded away. */
 export function visibleText(platform: string, text: string): { shown: string; folded: boolean } {
-  const limit = VISIBLE[platform] ?? 125;
+  const limit = VISIBLE_CHARS[platform] ?? 125;
   return text.length <= limit
     ? { shown: text, folded: false }
     : { shown: `${text.slice(0, limit).trimEnd()}…`, folded: true };

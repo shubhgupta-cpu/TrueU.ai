@@ -3,6 +3,9 @@ import { useAuth } from '@/app/auth';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
 import {
   useAdminUsers,
   useChangeRole,
@@ -55,6 +58,7 @@ export default function AdminUsersPage() {
   const [newRole, setNewRole] = useState<AdminUser['role']>('editor');
   const [shown, setShown] = useState<{ email: string; password: string } | null>(null);
   const active = users.filter((u) => u.active);
+  const onlyAdmin = active.filter((u) => u.role === 'admin').length <= 1;
   const failure = create.error ?? role.error ?? remove.error ?? reset.error;
 
   return (
@@ -121,21 +125,26 @@ export default function AdminUsersPage() {
                       <label className="sr-only" htmlFor={`role-${u.id}`}>
                         Role of {u.email}
                       </label>
-                      <select
+                      <Select
                         id={`role-${u.id}`}
                         value={u.role}
-                        disabled={me || role.isPending}
+                        disabled={role.isPending || (me && onlyAdmin)}
                         onChange={(e) =>
                           role.mutate({ id: u.id, role: e.target.value as AdminUser['role'] })
                         }
-                        className="min-h-touch rounded-md border border-line bg-surface px-2"
+                        className="w-32"
                       >
                         {ROLES.map(([r, label]) => (
                           <option key={r} value={r}>
                             {label}
                           </option>
                         ))}
-                      </select>
+                      </Select>
+                      {me && onlyAdmin && (
+                        <p className="mt-1 max-w-[12rem] text-xs text-muted">
+                          You are the only admin. Add another admin to change this.
+                        </p>
+                      )}
                     </td>
                     <td className="p-3">
                       {!u.active ? (
@@ -190,7 +199,7 @@ export default function AdminUsersPage() {
         <Card className="space-y-4 p-4">
           <h2 className="text-lg font-semibold">Add a person</h2>
           <form
-            className="flex flex-wrap items-end gap-4"
+            className="grid items-end gap-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,2fr)_minmax(0,2fr)_12rem_auto]"
             onSubmit={(e) => {
               e.preventDefault();
               create.mutate(
@@ -209,49 +218,37 @@ export default function AdminUsersPage() {
               );
             }}
           >
-            <div>
-              <label htmlFor="new-email" className="block text-sm font-medium">
-                Email
-              </label>
-              <input
+            <div className="space-y-1">
+              <Label htmlFor="new-email">Email</Label>
+              <Input
                 id="new-email"
                 type="email"
                 required
+                placeholder="name@company.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="min-h-touch w-64 rounded-md border border-line bg-surface px-3"
               />
             </div>
-            <div>
-              <label htmlFor="new-name" className="block text-sm font-medium">
-                Name (optional)
-              </label>
-              <input
-                id="new-name"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                className="min-h-touch w-56 rounded-md border border-line bg-surface px-3"
-              />
+            <div className="space-y-1">
+              <Label htmlFor="new-name">Name (optional)</Label>
+              <Input id="new-name" value={fullName} onChange={(e) => setFullName(e.target.value)} />
             </div>
-            <div>
-              <label htmlFor="new-role" className="block text-sm font-medium">
-                Role
-              </label>
-              <select
+            <div className="space-y-1">
+              <Label htmlFor="new-role">Role</Label>
+              <Select
                 id="new-role"
                 value={newRole}
                 onChange={(e) => setNewRole(e.target.value as AdminUser['role'])}
-                className="min-h-touch rounded-md border border-line bg-surface px-3"
               >
                 {ROLES.map(([r, label]) => (
                   <option key={r} value={r}>
                     {label}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
             <Button type="submit" disabled={create.isPending || !email}>
-              Add person
+              {create.isPending ? 'Adding…' : 'Add person'}
             </Button>
           </form>
           <p className="text-sm text-muted">

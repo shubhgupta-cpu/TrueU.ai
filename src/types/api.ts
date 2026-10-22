@@ -365,3 +365,35 @@ export interface UsageSummary {
     ms: number;
   }>;
 }
+
+/** One row of Settings → Integrations. Never carries a secret value. */
+export interface IntegrationCheck {
+  group: string;
+  name: string;
+  status: 'ok' | 'missing' | 'error';
+  detail: string;
+  /** When it last did something (last call, last check), if known. */
+  at: string | null;
+}
+
+/** Settings → Platforms: what the app really uses for a platform (read-only). */
+export interface PlatformRule {
+  platform: string;
+  label: string;
+  caption_min: number | null;
+  caption_max: number | null;
+  visible_chars: number | null;
+  webhook_fields: string[];
+  webhook_env: string | null;
+}
+
+/** One post of the default 15-day plan (Settings → Schedule templates). */
+export interface TemplateSlot {
+  id: string;
+  day: number;
+  platform: string;
+  asset_role: string | null;
+  local_time: string;
+  notes: string | null;
+  best_time: boolean;
+}

@@ -42,15 +42,13 @@ export function accessChangeError(
 ): string | null {
   const target = users.find((u) => u.id === targetId);
   if (!target) return 'User not found';
+  if (change === 'remove' && targetId === actorId) return 'You can’t remove your own access.';
   const losesAdmin = target.role === 'admin' && (change === 'remove' || change.role !== 'admin');
-  if (change !== 'remove' && !losesAdmin) return null;
-  if (targetId === actorId) {
-    return change === 'remove'
-      ? 'You can’t remove your own access.'
-      : 'You can’t change your own role.';
-  }
+  // You may change your own role (for example step down) as long as another active admin remains.
   if (losesAdmin && users.filter((u) => u.role === 'admin' && u.active).length <= 1) {
-    return 'There must be at least one admin.';
+    return targetId === actorId
+      ? 'You are the only admin. Make someone else an admin first, then you can change your own role.'
+      : 'There must be at least one admin.';
   }
   return null;
 }

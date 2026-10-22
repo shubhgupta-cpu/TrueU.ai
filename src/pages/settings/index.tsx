@@ -1,23 +1,29 @@
 import { NavLink, Navigate, useParams } from 'react-router-dom';
-import { ComingInPhase, PageHeader } from '@/components/page-header';
+import { useAuth } from '@/app/auth';
+import { PageHeader } from '@/components/page-header';
+import { GeneralSettings } from '@/features/settings/components/general-settings';
+import { Integrations } from '@/features/settings/components/integrations';
+import { Platforms } from '@/features/settings/components/platforms';
+import { ScheduleTemplates } from '@/features/settings/components/schedule-templates';
 import { ScoringSettings } from '@/features/settings/components/scoring-settings';
 import { SeedKeywords } from '@/features/settings/components/seed-keywords';
 import { cn } from '@/lib/utils';
 
 const TABS = [
-  { slug: 'general', label: 'General', phase: 6 },
-  { slug: 'team', label: 'Team', phase: 2 },
+  { slug: 'general', label: 'General', admin: true },
   { slug: 'scoring', label: 'Scoring' },
-  { slug: 'platforms', label: 'Platforms', phase: 4 },
-  { slug: 'schedule-templates', label: 'Schedule templates', phase: 5 },
-  { slug: 'graphics-templates', label: 'Graphics templates', phase: 4 },
   { slug: 'seed-keywords', label: 'Seed keywords' },
-  { slug: 'integrations', label: 'Integrations', phase: 6 },
+  { slug: 'schedule-templates', label: 'Schedule templates', admin: true },
+  { slug: 'platforms', label: 'Platforms', admin: true },
+  { slug: 'integrations', label: 'Integrations', admin: true },
 ] as const;
 
 export default function SettingsPage() {
+  const { profile } = useAuth();
+  const isAdmin = profile?.role === 'admin';
+  const tabs = TABS.filter((t) => isAdmin || !('admin' in t));
   const tab = useParams()['*'] || '';
-  const current = TABS.find((t) => t.slug === tab);
+  const current = tabs.find((t) => t.slug === tab);
   if (!current) return <Navigate to="/settings/scoring" replace />;
 
   return (
@@ -25,7 +31,7 @@ export default function SettingsPage() {
       <PageHeader title="Settings" />
       <nav aria-label="Settings sections" className="mt-4 overflow-x-auto border-b border-line">
         <ul className="flex gap-1">
-          {TABS.map((t) => (
+          {tabs.map((t) => (
             <li key={t.slug}>
               <NavLink
                 to={`/settings/${t.slug}`}
@@ -43,9 +49,12 @@ export default function SettingsPage() {
         </ul>
       </nav>
       <div className="mt-6">
+        {current.slug === 'general' && <GeneralSettings />}
         {current.slug === 'scoring' && <ScoringSettings />}
         {current.slug === 'seed-keywords' && <SeedKeywords />}
-        {'phase' in current && <ComingInPhase phase={current.phase} />}
+        {current.slug === 'schedule-templates' && <ScheduleTemplates />}
+        {current.slug === 'platforms' && <Platforms />}
+        {current.slug === 'integrations' && <Integrations />}
       </div>
     </>
   );
