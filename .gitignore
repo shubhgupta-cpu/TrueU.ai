@@ -1,0 +1,16 @@
+node_modules
+dist
+*.local
+.env
+.env.*
+!.env.example
+!.env.demo
+supabase/.env
+supabase/.temp
+supabase/.branches
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+
+# Airtable base and table IDs of this deployment: local only (setup scripts use it; the app does not)
+scripts/airtable/manifest.json

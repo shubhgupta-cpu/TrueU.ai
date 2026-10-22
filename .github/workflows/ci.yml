@@ -1,0 +1,24 @@
+# Runs on every push and pull request. A change that fails here should not be deployed.
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run test
+      - run: npm run build
+      # Known-vulnerable production dependencies (high or critical) fail the build. Dev-tool findings are reviewed by hand.
+      - run: npm audit --omit=dev --audit-level=high

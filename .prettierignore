@@ -1,0 +1,7 @@
+dist
+node_modules
+src/types/database.ts
+supabase/migrations
+supabase/.temp
+docs
+*.md
