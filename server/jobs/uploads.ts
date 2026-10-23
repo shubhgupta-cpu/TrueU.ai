@@ -3,6 +3,7 @@
 import { create, eq, link, list, nowIso, str, T, updateOne } from '../airtable.js';
 import { listFiles } from '../dropbox.js';
 import { activity } from '../log.js';
+import { syncTranscriptFile } from './transcripts.js';
 import { isVideoFile, shortNumber } from '../publish-map.js';
 import { getSettings } from '../settings.js';
 import type { JobHandler } from './handlers.js';
@@ -83,6 +84,7 @@ export async function scanProject(
     await activity({ event: 'video_detected', projectId, details: { file: f.name, role: f.role } });
     changed++;
   }
+  if (await syncTranscriptFile(projectId, folder)) changed++;
   return changed;
 }
 

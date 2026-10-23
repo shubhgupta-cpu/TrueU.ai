@@ -4,7 +4,6 @@ import type { IntegrationCheck } from '../../src/types/api.js';
 import { eq, first, list, str, T } from '../airtable.js';
 import { dropboxConfigured, listFolders } from '../dropbox.js';
 import { env, isMock } from '../env.js';
-import { workerConfigured } from '../github.js';
 import { WEBHOOK_ENV } from '../publish-map.js';
 
 const PLATFORM_NAME: Array<[string, string]> = [
@@ -126,20 +125,11 @@ export async function integrationChecks(): Promise<IntegrationCheck[]> {
   const tStatus = lastTranscript ? str(lastTranscript.fields, 'Status') : null;
   add({
     group: 'Video transcription',
-    name: 'Worker start key (GITHUB_REPO and GITHUB_DISPATCH_TOKEN)',
-    status: workerConfigured() ? 'ok' : 'missing',
-    detail: workerConfigured()
-      ? 'Set: the app can start the Python worker on GitHub'
-      : 'Not set: uploaded videos are not transcribed, so YouTube chapters come from the script.',
-    at: null,
-  });
-  add({
-    group: 'Video transcription',
     name: 'Latest video transcript',
     status: tStatus === 'failed' ? 'error' : tStatus ? 'ok' : 'missing',
     detail: lastTranscript
       ? `${str(lastTranscript.fields, 'Role') ?? 'video'}: ${tStatus}${tStatus === 'failed' ? ` (${str(lastTranscript.fields, 'Error') ?? 'unknown'})` : ''}`
-      : 'None yet. The first one starts when a video is uploaded and detected.',
+      : 'None yet. The editor puts a transcript (PDF, Word or text) next to the long video.',
     at: lastTranscript
       ? (str(lastTranscript.fields, 'Requested At') ?? lastTranscript.createdTime)
       : null,

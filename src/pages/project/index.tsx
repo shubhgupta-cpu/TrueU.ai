@@ -65,7 +65,7 @@ export default function ProjectPage() {
       />
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_320px]">
         <ProjectSections project={p} timeZone={timezone} />
-        <aside className="space-y-6">
+        <aside className="space-y-6 lg:mt-20">
           <section className="space-y-3 rounded-lg border border-line bg-surface p-5">
             <h2 className="font-sans text-xs font-semibold uppercase tracking-wider text-muted">
               Status
@@ -83,6 +83,9 @@ export default function ProjectPage() {
               Schedule
             </h2>
             <PostingWeek projectId={p.id} />
+            <Button asChild variant="outline" className="w-full">
+              <Link to={`/projects/${p.id}/schedule#choose-dates`}>Choose dates and times</Link>
+            </Button>
           </section>
           <DropboxPanel project={p} />
           <VideosPanel project={p} />

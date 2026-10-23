@@ -24,6 +24,20 @@ export default {
         sans: ['Inter', 'system-ui', 'sans-serif'],
         mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
       },
+      keyframes: {
+        // Tab click: the panel you jumped to glows for a moment so the eye finds it.
+        'section-flash': {
+          '0%': {
+            backgroundColor: 'rgba(67,56,202,0.16)',
+            boxShadow: '0 0 0 3px rgba(67,56,202,0.55)',
+          },
+          '100%': {
+            backgroundColor: 'rgba(67,56,202,0)',
+            boxShadow: '0 0 0 3px rgba(67,56,202,0)',
+          },
+        },
+      },
+      animation: { 'section-flash': 'section-flash 1.8s ease-out 0.45s both' },
       width: { sidebar: '232px' },
       spacing: { sidebar: '232px', touch: '44px' },
       minHeight: { touch: '44px' },

@@ -32,31 +32,31 @@ export function PipelineSteps({
       </p>
       <ol
         className={cn(
-          'space-y-2',
+          'space-y-3',
           compact && 'sm:grid sm:grid-cols-2 sm:gap-x-4 sm:space-y-0 sm:gap-y-2',
         )}
       >
         {steps.map((s) => (
-          <li key={s.key} className="flex gap-3">
+          <li key={s.key} className="grid grid-cols-[28px_1fr_auto] items-start gap-x-3">
             <span
               aria-hidden
               className={cn(
-                'mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full font-mono text-xs',
+                'flex h-7 w-7 items-center justify-center rounded-full font-mono text-xs',
                 CIRCLE[s.state],
               )}
             >
               {s.n}
             </span>
-            <div className="min-w-0 flex-1 space-y-0.5">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-sm font-medium">
-                  <span className="sr-only">Step {s.n}: </span>
-                  {s.label}
-                </span>
-                <StatusBadge meta={STEP_STATE_META[s.state]} />
-              </div>
+            <div className="min-w-0">
+              <span className="block text-sm font-medium leading-7">
+                <span className="sr-only">Step {s.n}: </span>
+                {s.label}
+              </span>
               {s.detail && <p className="break-all text-xs text-muted">{s.detail}</p>}
               {s.error && <p className="text-xs text-danger">{s.error}</p>}
+            </div>
+            <div className="flex h-7 items-center">
+              <StatusBadge meta={STEP_STATE_META[s.state]} />
             </div>
           </li>
         ))}

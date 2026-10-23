@@ -1,3 +1,13 @@
+import {
+  BarChart3,
+  Captions,
+  Eye,
+  FileText,
+  Megaphone,
+  Newspaper,
+  ScrollText,
+  type LucideIcon,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { BlogPanel } from '@/features/projects/components/blog-panel';
 import { CaptionsPanel } from '@/features/projects/components/captions-panel';
@@ -8,15 +18,39 @@ import { YouTubePanel } from '@/features/projects/components/youtube-panel';
 import { cn } from '@/lib/utils';
 import type { ProjectDetail } from '@/types/api';
 
-const SECTIONS = [
-  ['script', 'Script'],
-  ['blog', 'Blog'],
-  ['captions', 'Captions'],
-  ['youtube', 'YouTube'],
-  ['ctas', 'CTAs & hooks'],
-  ['polls', 'Polls'],
-  ['previews', 'Previews'],
-] as const;
+const SECTIONS: ReadonlyArray<readonly [string, string, LucideIcon]> = [
+  ['script', 'Script', ScrollText],
+  ['blog', 'Blog', Newspaper],
+  ['captions', 'Captions', Captions],
+  ['youtube', 'YouTube', FileText],
+  ['ctas', 'CTAs & hooks', Megaphone],
+  ['polls', 'Polls', BarChart3],
+  ['previews', 'Previews', Eye],
+];
+
+/** One panel under a tab. When its tab was just clicked, a glow overlay plays once (keyed so it replays). */
+function Section({
+  id,
+  flash,
+  children,
+}: {
+  id: string;
+  flash: { id: string; n: number } | null;
+  children: React.ReactNode;
+}) {
+  return (
+    <div id={`section-${id}`} className="relative scroll-mt-24">
+      {children}
+      {flash?.id === id && (
+        <span
+          key={flash.n}
+          aria-hidden
+          className="pointer-events-none absolute inset-0 rounded-lg motion-safe:animate-section-flash"
+        />
+      )}
+    </div>
+  );
+}
 
 /** Every generated panel of a project, under a sticky tab bar that scrolls to each one. */
 export function ProjectSections({
@@ -27,6 +61,7 @@ export function ProjectSections({
   timeZone: string;
 }) {
   const [active, setActive] = useState<string>('script');
+  const [flash, setFlash] = useState<{ id: string; n: number } | null>(null);
 
   useEffect(() => {
     // The section nearest the top of the screen is the active tab.
@@ -52,58 +87,71 @@ export function ProjectSections({
     return () => io.disconnect();
   }, []);
 
+  useEffect(() => {
+    // Arriving from a Pipeline card (#section-youtube): scroll to that panel once it has rendered.
+    const id = window.location.hash.replace('#section-', '');
+    if (!window.location.hash.startsWith('#section-')) return;
+    const t = setTimeout(() => {
+      document.getElementById(`section-${id}`)?.scrollIntoView({ block: 'start' });
+      setFlash((f) => ({ id, n: (f?.n ?? 0) + 1 }));
+    }, 300);
+    return () => clearTimeout(t);
+  }, []);
+
   const go = (id: string) => {
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     document
       .getElementById(`section-${id}`)
       ?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
     setActive(id);
+    setFlash((f) => ({ id, n: (f?.n ?? 0) + 1 }));
   };
 
   return (
     <div className="space-y-6">
       <nav
         aria-label="Sections"
-        className="sticky top-0 z-10 -mx-1 flex gap-2 overflow-x-auto bg-ground/95 px-1 py-2 backdrop-blur"
+        className="sticky top-2 z-10 flex h-14 items-center gap-1 overflow-x-auto rounded-xl border border-line bg-surface/95 px-2 shadow-sm backdrop-blur"
       >
-        {SECTIONS.map(([id, label]) => (
+        {SECTIONS.map(([id, label, Icon]) => (
           <button
             key={id}
             type="button"
             onClick={() => go(id)}
             aria-current={active === id ? 'true' : undefined}
             className={cn(
-              'min-h-touch whitespace-nowrap rounded-md border px-4 text-sm',
+              'flex min-h-touch items-center gap-2 whitespace-nowrap rounded-lg px-4 text-sm font-medium transition-colors',
               active === id
-                ? 'border-accent bg-accent-soft font-medium text-accent'
-                : 'border-line bg-surface hover:bg-ground',
+                ? 'bg-accent text-white shadow'
+                : 'text-muted hover:bg-accent-soft hover:text-accent',
             )}
           >
+            <Icon aria-hidden className="h-4 w-4" />
             {label}
           </button>
         ))}
       </nav>
-      <div id="section-script" className="scroll-mt-20">
+      <Section id="script" flash={flash}>
         <ScriptPanel project={p} timeZone={timeZone} />
-      </div>
-      <div id="section-blog" className="scroll-mt-20">
+      </Section>
+      <Section id="blog" flash={flash}>
         <BlogPanel project={p} timeZone={timeZone} />
-      </div>
-      <div id="section-captions" className="scroll-mt-20">
+      </Section>
+      <Section id="captions" flash={flash}>
         <CaptionsPanel project={p} timeZone={timeZone} />
-      </div>
-      <div id="section-youtube" className="scroll-mt-20">
+      </Section>
+      <Section id="youtube" flash={flash}>
         <YouTubePanel project={p} timeZone={timeZone} />
-      </div>
-      <div id="section-ctas" className="scroll-mt-20">
+      </Section>
+      <Section id="ctas" flash={flash}>
         <CtasPanel project={p} timeZone={timeZone} />
-      </div>
-      <div id="section-polls" className="scroll-mt-20">
+      </Section>
+      <Section id="polls" flash={flash}>
         <PollsPanel project={p} timeZone={timeZone} />
-      </div>
-      <div id="section-previews" className="scroll-mt-20">
+      </Section>
+      <Section id="previews" flash={flash}>
         <PreviewsPanel projectId={p.id} />
-      </div>
+      </Section>
     </div>
   );
 }

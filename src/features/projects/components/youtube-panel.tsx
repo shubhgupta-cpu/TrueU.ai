@@ -225,7 +225,6 @@ function TranscriptBanner({
   const regenerate = useRegenerateYouTube(project.id);
   const retry = useRetryTranscripts(project.id);
   const ts = project.transcripts;
-  const working = ts.filter((t) => t.status === 'queued' || t.status === 'running');
   const failed = ts.filter((t) => t.status === 'failed');
   const ready = new Set(ts.filter((t) => t.status === 'done').map((t) => t.role));
   // Videos whose transcript is ready but whose metadata was written from the script.
@@ -233,48 +232,52 @@ function TranscriptBanner({
     (i) => i.post && ready.has(ROLE_OF[i.post] ?? '') && i.extra['source'] !== 'video',
   );
   const fromVideo = project.youtube.items.filter((i) => i.extra['source'] === 'video');
-  if (!ts.length && !fromVideo.length) return null;
+  const longVideo = project.videos.some((v) => v.role === 'long_video');
+  const long = ts.find((t) => t.role === 'long_video');
+  if (!long && !longVideo && !fromVideo.length) return null;
   return (
     <div
       className="space-y-2 rounded-md border border-line bg-ground p-3 text-sm"
       aria-live="polite"
     >
-      {working.length > 0 && (
+      {!long && longVideo && (
         <p>
-          <strong>
-            Transcribing the uploaded {working.map((t) => ROLE_LABEL[t.role] ?? t.role).join(', ')}…
-          </strong>{' '}
-          The timestamps and description are rewritten from what is really said, when it finishes (a
-          few minutes).
+          <strong>No transcript yet.</strong> Ask the editor to put the transcript (PDF, Word or
+          text, with times like 0:42 at the start of each line) in the “Long Youtube Final Video”
+          folder next to the video. The timestamps and description are written from it; until then
+          they come from the script.
+        </p>
+      )}
+      {long?.status === 'done' && !long.timed && (
+        <p>
+          The transcript has no times, so the description is written from it but the chapter times
+          are not. Ask the editor for a transcript with a time at the start of each line.
         </p>
       )}
       {failed.length > 0 && (
         <div role="alert" className="space-y-1 text-danger">
-          <p>
-            Couldn’t transcribe {failed.map((t) => ROLE_LABEL[t.role] ?? t.role).join(', ')}:{' '}
-            {failed[0]?.error ?? 'unknown error'}
-          </p>
+          <p>{failed[0]?.error ?? 'Couldn’t read the transcript file.'}</p>
           <Button
             size="sm"
             variant="outline"
             disabled={retry.isPending}
             onClick={() => retry.mutate()}
           >
-            Try again
+            Check again
           </Button>
         </div>
       )}
-      {fromVideo.length > 0 && outdated.length === 0 && working.length === 0 && (
+      {fromVideo.length > 0 && outdated.length === 0 && (
         <p className="text-success">
-          Written from the uploaded video’s transcript (
+          Written from the editor’s transcript (
           {fromVideo.map((i) => ROLE_LABEL[ROLE_OF[i.post ?? ''] ?? ''] ?? '').join(', ')}): the
-          chapter times match the video.
+          chapter times come from it.
         </p>
       )}
       {outdated.length > 0 && (
         <div className="space-y-2">
           <p>
-            A transcript of the uploaded video is ready, but the{' '}
+            The editor’s transcript is ready, but the{' '}
             {outdated.map((i) => ROLE_LABEL[ROLE_OF[i.post ?? ''] ?? ''] ?? '').join(', ')} metadata
             was written from the script, so its timestamps may not match the video.
           </p>

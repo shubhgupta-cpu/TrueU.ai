@@ -288,12 +288,12 @@ export const TABLES = [
   },
   {
     name: 'Transcripts',
-    description: 'Speech-to-text of each uploaded video (made by the Python worker in worker/). Segments carry the time of every sentence.',
+    description: 'The editor’s transcript file for the long video, read by the app. Segments carry the time of every line (all 0 when the file has no times).',
     fields: [
       text('Name'),
       select('Role', ENUMS.assetRole),
       select('Status', ENUMS.transcriptStatus),
-      text('Source URL', 'Short-lived Dropbox link the worker downloads from. Cleared when the worker finishes.'),
+      text('Source URL', 'Unused (kept from the removed speech-to-text worker).'),
       text('Language'),
       decimal('Duration Seconds', 1),
       long('Text', 'The full transcript.'),

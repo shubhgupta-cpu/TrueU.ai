@@ -1,20 +1,16 @@
-// Video transcripts: asks the Python worker (worker/transcribe.py, run by GitHub Actions) to turn each
-// uploaded video into text with times, and uses the result for the YouTube chapters and description.
-// Called every minute from /api/cron/minute (syncTranscripts); generate_youtube reads loadTranscripts.
+// The editor's transcript of the long video (a PDF / Word / text file in "Long Youtube Final Video") gives the
+// YouTube chapters and description what is really said. Read by scan_uploads (syncTranscriptFile);
+// generate_youtube reads loadTranscripts; syncTranscripts (every minute) rewrites unapproved metadata once.
 import { and, create, eq, link, list, nowIso, str, T, updateOne, num } from '../airtable.js';
-import { temporaryLink } from '../dropbox.js';
+import { listFiles, temporaryLink } from '../dropbox.js';
 import { isMock } from '../env.js';
-import { dispatchTranscribe, workerConfigured } from '../github.js';
 import { mockDurationSec, mockSegments } from '../fixtures/transcript.js';
 import { activity } from '../log.js';
-import { parseSegments, type Segment } from '../transcripts.js';
+import { fileText, MAX_TRANSCRIPT_BYTES, TRANSCRIPT_FILE } from '../transcript-file.js';
+import { parseSegments, segmentsFromText, type Segment } from '../transcripts.js';
 import { DuplicateJobError, enqueue, pendingJob } from './queue.js';
 
-const ROLES = ['long_video', 'short_1', 'short_2', 'short_3'];
-const REQUEST_AGAIN_MIN = 20; // queued and untouched this long: start the worker again
-const RUNNING_TIMEOUT_MIN = 75; // the workflow itself stops at 90
-const minutesSince = (iso: string | null) =>
-  iso ? (Date.now() - Date.parse(iso)) / 60_000 : Infinity;
+const LONG_FOLDER = 'Long Youtube Final Video';
 
 export interface ProjectTranscript {
   role: string;
@@ -42,117 +38,124 @@ export async function loadTranscripts(projectId: string): Promise<Map<string, Pr
       role: str(r.fields, 'Role') ?? '',
       rowId: r.id,
       segments,
-      durationSec: num(r.fields, 'Duration Seconds') ?? segments.at(-1)!.e,
+      durationSec: num(r.fields, 'Duration Seconds') ?? 0,
     });
   }
   return out;
 }
 
-/** Re-queues failed transcripts (the owner's Retry) with a fresh download link. */
+/** Looks for the transcript file next to the long video and stores it (a new revision replaces the old one). */
+export async function syncTranscriptFile(projectId: string, folder: string): Promise<boolean> {
+  const files = (await listFiles(`${folder}/${LONG_FOLDER}`)).filter((f) =>
+    TRANSCRIPT_FILE.test(f.name),
+  );
+  const file = files.find((f) => /transcript/i.test(f.name)) ?? files.at(-1);
+  if (!file) return false;
+  const [assets, rows] = await Promise.all([
+    list(T.assets, { filterByFormula: and(eq('Current', true), eq('Role', 'long_video')) }),
+    list(T.transcripts, { filterByFormula: eq('Role', 'long_video') }),
+  ]);
+  const asset = assets.find((a) => link(a.fields, 'Project') === projectId);
+  if (!asset) return false; // wait for the video itself
+  const key = `file:${file.id}:${file.rev}`;
+  const mine = rows.filter((r) => link(r.fields, 'Project') === projectId);
+  const same = mine.find((r) => str(r.fields, 'Name') === key);
+  if (same) {
+    if (link(same.fields, 'Asset') !== asset.id)
+      await updateOne(T.transcripts, same.id, { Asset: [asset.id], Updated: nowIso() });
+    return false;
+  }
+
+  let fields: Record<string, unknown>;
+  try {
+    const res = await fetch(await temporaryLink(file.id));
+    const data = new Uint8Array(await res.arrayBuffer());
+    if (!res.ok || data.length > MAX_TRANSCRIPT_BYTES) throw new Error('could not download it');
+    const segments = segmentsFromText(await fileText(file.name, data));
+    if (segments.length === 0) throw new Error('no text found in it');
+    const json = JSON.stringify(segments);
+    if (json.length > 95_000) throw new Error('it is too long for a 15-minute video');
+    fields = {
+      Status: 'done',
+      'Duration Seconds': segments.some((s) => s.e > 0) ? Math.round(segments.at(-1)!.e) : 0,
+      Text: segments.map((s) => s.t).join(' '),
+      Segments: json,
+      Error: '',
+    };
+  } catch (err) {
+    const why = err instanceof Error ? err.message : 'unknown error';
+    fields = { Status: 'failed', Error: `Couldn’t read ${file.name}: ${why.slice(0, 120)}` };
+  }
+  const row = {
+    Name: key,
+    Asset: [asset.id],
+    'Used At': '',
+    'Requested At': nowIso(),
+    'Finished At': nowIso(),
+    Updated: nowIso(),
+    ...fields,
+  };
+  if (mine[0]) await updateOne(T.transcripts, mine[0].id, row);
+  else
+    await create(T.transcripts, [
+      { ...row, Role: 'long_video', Project: [projectId], Created: nowIso() },
+    ]);
+  await activity({
+    event: 'transcript_file_read',
+    projectId,
+    details: { file: file.name, status: fields['Status'] },
+  });
+  return true;
+}
+
+/** The owner's "Check again": forgets a failed read so the file is tried once more. */
 export async function retryTranscripts(projectId: string): Promise<number> {
   const rows = (await list(T.transcripts, { filterByFormula: eq('Status', 'failed') })).filter(
     (r) => link(r.fields, 'Project') === projectId,
   );
-  for (const r of rows) {
-    const asset = link(r.fields, 'Asset');
-    const rec = asset
-      ? (await list(T.assets, { filterByFormula: `RECORD_ID()="${asset}"`, maxRecords: 1 }))[0]
-      : null;
-    await updateOne(T.transcripts, r.id, {
-      Status: 'queued',
-      Error: '',
-      'Source URL': rec ? await temporaryLink(str(rec.fields, 'Dropbox File ID') ?? '') : '',
-      'Requested At': nowIso(),
-      Updated: nowIso(),
-    });
-  }
-  if (rows.length && !isMock()) await dispatchTranscribe();
+  for (const r of rows) await updateOne(T.transcripts, r.id, { Name: 'retry', Updated: nowIso() });
+  const project = (
+    await list(T.projects, { filterByFormula: `RECORD_ID()="${projectId}"`, maxRecords: 1 })
+  )[0];
+  const folder = project
+    ? (str(project.fields, 'Videos Folder Path') ?? str(project.fields, 'Dropbox Folder Path'))
+    : null;
+  if (folder) await syncTranscriptFile(projectId, folder);
   return rows.length;
 }
 
+/** Every minute: rewrite unapproved YouTube metadata from a new transcript (mock mode first makes one). */
 export async function syncTranscripts(): Promise<Record<string, number>> {
-  const stats = { created: 0, redispatched: 0, timed_out: 0, auto_regenerated: 0 };
-  if (!isMock() && !workerConfigured()) return stats; // Settings → Integrations shows it as not set up
+  if (isMock()) await mockTranscripts();
+  return { auto_regenerated: await regenerateFromNewTranscripts() };
+}
 
+/** Mock mode has no Dropbox files: each settled long video gets a fixture transcript. */
+async function mockTranscripts(): Promise<void> {
   const [assets, rows] = await Promise.all([
-    list(T.assets, { filterByFormula: and(eq('Current', true)) }),
+    list(T.assets, { filterByFormula: and(eq('Current', true), eq('Role', 'long_video')) }),
     list(T.transcripts),
   ]);
-  let dispatch = false;
-
-  // 1. A settled video with no transcript row yet → queue one.
   for (const a of assets) {
-    const role = str(a.fields, 'Role') ?? '';
-    if (!ROLES.includes(role) || !str(a.fields, 'Settled At')) continue;
-    if (rows.some((r) => link(r.fields, 'Asset') === a.id)) continue;
-    const base = {
-      Name: `${role} · ${str(a.fields, 'File Name') ?? ''}`,
-      Role: role,
-      Asset: [a.id],
-      Project: [link(a.fields, 'Project')].filter(Boolean),
-      'Requested At': nowIso(),
-      Created: nowIso(),
-      Updated: nowIso(),
-    };
-    if (isMock()) {
-      await create(T.transcripts, [
-        {
-          ...base,
-          Status: 'done',
-          Language: 'en',
-          'Duration Seconds': role === 'long_video' ? mockDurationSec : 45,
-          Text: mockSegments.map((s) => s.t).join(' '),
-          Segments: JSON.stringify(role === 'long_video' ? mockSegments : mockSegments.slice(0, 3)),
-          'Finished At': nowIso(),
-        },
-      ]);
-    } else {
-      await create(T.transcripts, [
-        {
-          ...base,
-          Status: 'queued',
-          'Source URL': await temporaryLink(str(a.fields, 'Dropbox File ID') ?? ''),
-        },
-      ]);
-      dispatch = true;
-    }
-    stats.created++;
-  }
-
-  // 2. Rows the worker has not picked up, or that got stuck.
-  for (const r of rows) {
-    const status = str(r.fields, 'Status');
-    if (
-      status === 'queued' &&
-      minutesSince(str(r.fields, 'Requested At')) > REQUEST_AGAIN_MIN &&
-      !isMock()
-    ) {
-      const asset = link(r.fields, 'Asset');
-      const rec = assets.find((x) => x.id === asset);
-      await updateOne(T.transcripts, r.id, {
-        // The download link lasts ~4 hours: refresh it whenever we ask again.
-        ...(rec
-          ? { 'Source URL': await temporaryLink(str(rec.fields, 'Dropbox File ID') ?? '') }
-          : {}),
+    if (!str(a.fields, 'Settled At') || rows.some((r) => link(r.fields, 'Asset') === a.id))
+      continue;
+    await create(T.transcripts, [
+      {
+        Name: `mock · ${str(a.fields, 'File Name') ?? ''}`,
+        Role: 'long_video',
+        Asset: [a.id],
+        Project: [link(a.fields, 'Project')].filter(Boolean),
+        Status: 'done',
+        'Duration Seconds': mockDurationSec,
+        Text: mockSegments.map((s) => s.t).join(' '),
+        Segments: JSON.stringify(mockSegments),
         'Requested At': nowIso(),
-      });
-      dispatch = true;
-      stats.redispatched++;
-    }
-    if (status === 'running' && minutesSince(str(r.fields, 'Started At')) > RUNNING_TIMEOUT_MIN) {
-      await updateOne(T.transcripts, r.id, {
-        Status: 'failed',
-        Error: 'Timed out: the worker did not finish. Use Retry.',
-        'Source URL': '',
         'Finished At': nowIso(),
-      });
-      stats.timed_out++;
-    }
+        Created: nowIso(),
+        Updated: nowIso(),
+      },
+    ]);
   }
-  if (dispatch) await dispatchTranscribe();
-
-  stats.auto_regenerated = await regenerateFromNewTranscripts();
-  return stats;
 }
 
 /**

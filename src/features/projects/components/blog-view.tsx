@@ -33,7 +33,7 @@ function Prose({ text }: { text: string }) {
         if (!lines.length) return null;
         if (lines.every((l) => /^\s*[-*•]\s+/.test(l))) {
           return (
-            <ul key={i} className="list-disc space-y-1 pl-5">
+            <ul key={i} className="list-disc space-y-2 pl-6">
               {lines.map((l, j) => (
                 <li key={j}>{inline(l.replace(/^\s*[-*•]\s+/, ''))}</li>
               ))}
@@ -75,24 +75,24 @@ export function BlogView({ version }: { version: BlogVersion }) {
   }
   const c = b.content;
   return (
-    <div className="space-y-5">
-      <dl className="grid gap-x-4 gap-y-1 rounded-md bg-ground p-4 text-xs sm:grid-cols-[auto_1fr]">
-        <dt className="font-medium text-muted">Meta description</dt>
+    <div className="space-y-8">
+      <dl className="grid gap-x-4 gap-y-2 rounded-md bg-ground p-4 text-sm sm:grid-cols-[auto_1fr]">
+        <dt className="font-semibold text-ink">Meta description</dt>
         <dd>
           {b.meta_description}{' '}
           <span className="font-mono text-muted">({b.meta_description.length}/160)</span>
         </dd>
-        <dt className="font-medium text-muted">Slug</dt>
+        <dt className="font-semibold text-ink">Slug</dt>
         <dd className="font-mono">{b.slug}</dd>
-        <dt className="font-medium text-muted">Primary keyword</dt>
+        <dt className="font-semibold text-ink">Primary keyword</dt>
         <dd>{b.primary_keyword}</dd>
         {version.category && (
           <>
-            <dt className="font-medium text-muted">Category</dt>
+            <dt className="font-semibold text-ink">Category</dt>
             <dd>{version.category}</dd>
           </>
         )}
-        <dt className="font-medium text-muted">Length</dt>
+        <dt className="font-semibold text-ink">Length</dt>
         <dd className="font-mono">{version.word_count ?? '—'} words</dd>
       </dl>
 
@@ -110,15 +110,15 @@ export function BlogView({ version }: { version: BlogVersion }) {
         </details>
       )}
 
-      <article className="space-y-3 text-[15px] leading-relaxed">
-        <h3 className="text-2xl font-semibold leading-snug">
+      <article className="space-y-5 text-[17px] leading-8">
+        <h3 className="text-3xl font-bold leading-tight">
           {b.title}{' '}
           <span className="font-mono text-xs font-normal text-muted">({b.title.length}/60)</span>
         </h3>
         <Prose text={c.introduction} />
         {ordered(b).map((s) => (
           <Fragment key={s.h2}>
-            <h4 className="pt-2 text-lg font-semibold">
+            <h4 className="border-l-4 border-accent pl-3 pt-4 text-2xl font-bold leading-snug">
               {s.h2}
               {s.trueu && (
                 <span className="ml-2 align-middle text-xs font-normal text-accent">
@@ -130,11 +130,13 @@ export function BlogView({ version }: { version: BlogVersion }) {
           </Fragment>
         ))}
         {c.trueu_section.cta_text && <p className="italic">{c.trueu_section.cta_text}</p>}
-        <h4 className="pt-2 text-lg font-semibold">Conclusion</h4>
+        <h4 className="border-l-4 border-accent pl-3 pt-4 text-2xl font-bold leading-snug">
+          Conclusion
+        </h4>
         <Prose text={c.conclusion} />
-        <aside className="rounded-lg border border-accent/30 bg-accent-soft p-4">
-          <p className="font-semibold">{c.cta_box.headline}</p>
-          <p className="mt-1 text-sm">{c.cta_box.body}</p>
+        <aside className="rounded-lg border border-accent/30 bg-accent-soft p-5">
+          <p className="text-xl font-bold">{c.cta_box.headline}</p>
+          <p className="mt-1">{c.cta_box.body}</p>
           <p className="mt-2 text-sm font-medium text-accent">
             {c.cta_box.button_text} →{' '}
             <span className="break-all font-mono text-xs">
@@ -144,7 +146,7 @@ export function BlogView({ version }: { version: BlogVersion }) {
         </aside>
       </article>
 
-      <section className="space-y-2 border-t border-line pt-4 text-sm">
+      <section className="space-y-3 border-t border-line pt-6 text-sm">
         <h4 className="font-sans text-xs font-semibold uppercase tracking-wider text-muted">
           SEO notes
         </h4>

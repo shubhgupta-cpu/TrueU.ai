@@ -405,4 +405,6 @@ export interface ProjectTranscript {
   role: string;
   status: 'queued' | 'running' | 'done' | 'failed';
   error: string | null;
+  /** The file has times, so the chapters can be exact; without them only the description comes from it. */
+  timed: boolean;
 }

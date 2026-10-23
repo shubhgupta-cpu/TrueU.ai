@@ -252,6 +252,7 @@ export function toProjectTranscript(r: AtRecord): ProjectTranscript {
     role: str(r.fields, 'Role') ?? '',
     status: (str(r.fields, 'Status') ?? 'queued') as ProjectTranscript['status'],
     error: str(r.fields, 'Error'),
+    timed: (num(r.fields, 'Duration Seconds') ?? 0) > 0,
   };
 }
 

@@ -20,7 +20,5 @@ jobs:
       - run: npm run lint
       - run: npm run test
       - run: npm run build
-      - name: Python worker tests
-        run: python -m unittest discover worker
       # Known-vulnerable production dependencies (high or critical) fail the build. Dev-tool findings are reviewed by hand.
       - run: npm audit --omit=dev --audit-level=high

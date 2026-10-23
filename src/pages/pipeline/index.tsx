@@ -1,99 +1,230 @@
-import { ArrowRight, CheckCircle2 } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Check, ChevronDown } from 'lucide-react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { PageHeader } from '@/components/page-header';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { useProject, useProjects } from '@/features/projects/api';
-import { pipelineSteps, STEP_STATE_META } from '@/features/projects/steps';
+import { pipelineSteps, STEP_STATE_META, type Step } from '@/features/projects/steps';
 import { projectStatus } from '@/lib/status';
 import { formatMonth } from '@/lib/time';
 import { cn } from '@/lib/utils';
 import type { Project } from '@/types/api';
 
-/** How far the project is: a bar, "n of 11 steps", and what is happening now. Loads in the background. */
-function Progress({ id }: { id: string }) {
-  const { data } = useProject(id);
-  if (!data) {
-    return (
-      <div aria-hidden className="space-y-2">
-        <div className="h-2 animate-pulse rounded-full bg-line" />
-        <div className="h-4 w-40 animate-pulse rounded bg-line" />
-      </div>
-    );
-  }
-  const steps = pipelineSteps(data);
-  const done = steps.filter((s) => s.state === 'done').length;
-  const now = steps.find((s) => s.state !== 'done');
-  const pct = Math.round((done / steps.length) * 100);
-  const meta = now ? STEP_STATE_META[now.state] : null;
+/** Which panel of the project page a step lives in (steps before the script have none). */
+const SECTION: Record<string, string> = {
+  script: 'script',
+  script_approval: 'script',
+  blog: 'blog',
+  blog_approval: 'blog',
+  captions: 'captions',
+  youtube: 'youtube',
+  ctas: 'ctas',
+  polls: 'polls',
+};
+
+const hrefOf = (projectId: string, step: Step) =>
+  `/projects/${projectId}${SECTION[step.key] ? `#section-${SECTION[step.key]}` : ''}`;
+
+const CARD: Record<Step['state'], string> = {
+  done: '',
+  running: 'border-info/40 bg-info-soft/50',
+  review: 'border-warning/50 bg-warning-soft',
+  failed: 'border-danger/50 bg-danger-soft',
+  waiting: '',
+  todo: '',
+};
+
+const SEGMENT: Record<Step['state'], string> = {
+  done: 'bg-success',
+  running: 'bg-info',
+  review: 'bg-warning',
+  failed: 'bg-danger',
+  waiting: 'bg-line',
+  todo: 'bg-line',
+};
+
+/** A step that needs attention or is running: a full card. */
+function ActiveCard({ step, projectId }: { step: Step; projectId: string }) {
   return (
-    <div className="space-y-2">
-      <div
-        role="progressbar"
-        aria-label="Steps done"
-        aria-valuemin={0}
-        aria-valuemax={steps.length}
-        aria-valuenow={done}
-        className="h-2 overflow-hidden rounded-full bg-line"
+    <li>
+      <Link
+        to={hrefOf(projectId, step)}
+        className={cn(
+          'flex h-full items-start gap-3 rounded-lg border p-3 transition hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent',
+          CARD[step.state],
+        )}
       >
-        <div
-          className={cn('h-full rounded-full', done === steps.length ? 'bg-success' : 'bg-accent')}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-      <p className="flex flex-wrap items-center gap-x-2 text-sm">
-        <span className="font-mono text-xs text-muted">
-          {done} of {steps.length} steps
+        <span
+          aria-hidden
+          className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-surface font-mono text-xs font-semibold shadow-sm"
+        >
+          {step.n}
         </span>
-        {now && meta ? (
-          <span className="text-ink">
-            · Now: <span className="font-medium">{now.label}</span>
-            <span className="text-muted"> ({meta.label.toLowerCase()})</span>
+        <span className="min-w-0 flex-1 space-y-1">
+          <span className="block text-sm font-semibold leading-snug">
+            <span className="sr-only">Step {step.n}: </span>
+            {step.label}
           </span>
+          {step.detail && (
+            <span className="block break-words text-xs text-muted">{step.detail}</span>
+          )}
+          {step.error && <span className="block text-xs text-danger">{step.error}</span>}
+          <StatusBadge meta={STEP_STATE_META[step.state]} />
+        </span>
+      </Link>
+    </li>
+  );
+}
+
+/** A finished or not-yet-started step: one small pill, so a long pipeline stays short. */
+function Pill({ step, projectId }: { step: Step; projectId: string }) {
+  const done = step.state === 'done';
+  return (
+    <li>
+      <Link
+        to={hrefOf(projectId, step)}
+        title={`${step.label}${step.detail ? ` · ${step.detail}` : ''} (${STEP_STATE_META[step.state].label})`}
+        className={cn(
+          'inline-flex min-h-[32px] items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition hover:border-accent',
+          done
+            ? 'border-success/30 bg-success-soft/50 text-success'
+            : 'border-dashed border-line text-muted',
+        )}
+      >
+        {done ? (
+          <Check aria-hidden className="h-3.5 w-3.5" />
         ) : (
-          <span className="flex items-center gap-1 font-medium text-success">
-            <CheckCircle2 aria-hidden className="h-4 w-4" />
-            All steps done
+          <span aria-hidden className="font-mono">
+            {step.n}
           </span>
         )}
-      </p>
+        <span className="sr-only">
+          Step {step.n}, {STEP_STATE_META[step.state].label}:{' '}
+        </span>
+        {step.label}
+      </Link>
+    </li>
+  );
+}
+
+function Group({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-2">
+      <h3 className="text-xs font-bold uppercase tracking-wider text-muted">{title}</h3>
+      {children}
     </div>
   );
 }
 
-function ProjectCard({ p }: { p: Project }) {
+/** One topic: a header with progress (always visible) and, when open, its steps grouped by state. */
+function TopicBoard({ p }: { p: Project }) {
+  const { data } = useProject(p.id);
+  const steps = data ? pipelineSteps(data) : null;
+  const [toggled, setToggled] = useState<boolean | null>(null);
+  const done = steps?.filter((s) => s.state === 'done') ?? [];
+  const active = steps?.filter((s) => ['running', 'review', 'failed'].includes(s.state)) ?? [];
+  const todo = steps?.filter((s) => ['todo', 'waiting'].includes(s.state)) ?? [];
+  const attention = active.filter((s) => s.state !== 'running').length;
+  // Open by default only when something needs the owner or is running; finished topics stay folded.
+  const open = toggled ?? active.length > 0;
+  const pct = steps ? Math.round((done.length / steps.length) * 100) : 0;
+
   return (
-    <li>
-      <Link
-        to={`/projects/${p.id}`}
-        className="group grid gap-4 rounded-xl border border-line bg-surface p-5 shadow-sm transition hover:border-accent/40 hover:shadow-md md:grid-cols-[3rem_minmax(0,1fr)_minmax(0,20rem)_1.5rem] md:items-center"
-      >
+    <article className="rounded-2xl border border-line bg-surface p-4 shadow-sm">
+      <header className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <span
           aria-hidden
-          className="hidden h-12 w-12 place-items-center rounded-full bg-accent-soft font-mono text-sm font-semibold text-accent md:grid"
+          className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-accent-soft font-mono text-sm font-semibold text-accent"
         >
           {String(p.sequence ?? '').padStart(2, '0')}
         </span>
-        <div className="min-w-0 space-y-2">
-          <h2 className="line-clamp-2 text-base font-semibold leading-snug group-hover:text-accent">
-            <span className="mr-2 font-mono text-xs font-medium text-muted md:hidden">
-              #{String(p.sequence ?? '').padStart(2, '0')}
-            </span>
+        <div className="min-w-0 flex-1 basis-60 space-y-0.5">
+          <h2 className="truncate text-base font-bold" title={p.title}>
             {p.title}
           </h2>
           <div className="flex flex-wrap items-center gap-2 text-sm text-muted">
             <span>{p.cycle_month ? formatMonth(p.cycle_month.slice(0, 7)) : '—'}</span>
             <span aria-hidden>·</span>
             <StatusBadge meta={projectStatus[p.status]} />
+            {attention > 0 && (
+              <span className="inline-flex items-center gap-1 font-medium text-warning">
+                <AlertTriangle aria-hidden className="h-4 w-4" />
+                {attention} need{attention === 1 ? 's' : ''} you
+              </span>
+            )}
           </div>
-          {p.status_detail && <p className="line-clamp-2 text-sm text-muted">{p.status_detail}</p>}
         </div>
-        <Progress id={p.id} />
-        <ArrowRight
-          aria-hidden
-          className="hidden h-5 w-5 text-muted transition group-hover:translate-x-1 group-hover:text-accent md:block"
-        />
-      </Link>
-    </li>
+        {steps ? (
+          <div className="w-full space-y-1 sm:w-60">
+            <div
+              role="progressbar"
+              aria-label="Steps done"
+              aria-valuemin={0}
+              aria-valuemax={steps.length}
+              aria-valuenow={done.length}
+              className="flex h-2 gap-0.5"
+            >
+              {steps.map((s) => (
+                <span key={s.key} className={cn('h-full flex-1 rounded-sm', SEGMENT[s.state])} />
+              ))}
+            </div>
+            <p className="font-mono text-xs text-muted">
+              {done.length} of {steps.length} steps done · {pct}%
+            </p>
+          </div>
+        ) : (
+          <div aria-hidden className="h-8 w-60 animate-pulse rounded bg-line" />
+        )}
+        <Link
+          to={`/projects/${p.id}`}
+          className="inline-flex min-h-touch items-center gap-1 rounded-lg border border-line px-3 text-sm font-medium hover:border-accent hover:text-accent"
+        >
+          Open <ArrowRight aria-hidden className="h-4 w-4" />
+        </Link>
+        <button
+          type="button"
+          onClick={() => setToggled(!open)}
+          aria-expanded={open}
+          aria-label={open ? 'Hide steps' : 'Show steps'}
+          disabled={!steps}
+          className="grid min-h-touch min-w-touch place-items-center rounded-lg border border-line hover:border-accent disabled:opacity-50"
+        >
+          <ChevronDown aria-hidden className={cn('h-4 w-4 transition', open && 'rotate-180')} />
+        </button>
+      </header>
+
+      {steps && open && (
+        <div className="mt-4 space-y-4 border-t border-line pt-4">
+          {active.length > 0 && (
+            <Group title="Working on / needs you">
+              <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {active.map((s) => (
+                  <ActiveCard key={s.key} step={s} projectId={p.id} />
+                ))}
+              </ul>
+            </Group>
+          )}
+          {done.length > 0 && (
+            <Group title={`Done (${done.length})`}>
+              <ul className="flex flex-wrap gap-2">
+                {done.map((s) => (
+                  <Pill key={s.key} step={s} projectId={p.id} />
+                ))}
+              </ul>
+            </Group>
+          )}
+          {todo.length > 0 && (
+            <Group title={`Still to do (${todo.length})`}>
+              <ul className="flex flex-wrap gap-2">
+                {todo.map((s) => (
+                  <Pill key={s.key} step={s} projectId={p.id} />
+                ))}
+              </ul>
+            </Group>
+          )}
+        </div>
+      )}
+    </article>
   );
 }
 
@@ -105,7 +236,7 @@ export default function PipelinePage() {
     <>
       <PageHeader
         title="Pipeline"
-        description="Every selected topic and where it stands. Open one to review, approve and schedule."
+        description="Every selected topic and how far it is. Open a topic's steps to see what is done, what is happening now and what is still to do."
       />
       <div className="mt-6 space-y-4">
         {projects.isLoading && <p className="text-sm text-muted">Loading…</p>}
@@ -119,16 +250,9 @@ export default function PipelinePage() {
             No projects yet. Select a topic in the Topic Inbox to start one.
           </p>
         )}
-        {list.length > 0 && (
-          <p className="text-sm text-muted">
-            {list.length} {list.length === 1 ? 'topic' : 'topics'} in the pipeline
-          </p>
-        )}
-        <ul className="space-y-3">
-          {list.map((p) => (
-            <ProjectCard key={p.id} p={p} />
-          ))}
-        </ul>
+        {list.map((p) => (
+          <TopicBoard key={p.id} p={p} />
+        ))}
       </div>
     </>
   );

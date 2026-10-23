@@ -2,6 +2,7 @@ import { formatInTimeZone } from 'date-fns-tz';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PostTimes } from '@/features/schedule/components/post-times';
 import { useSetPostTime } from '@/features/schedule/api';
 import { cn } from '@/lib/utils';
 import type { ScheduledPost } from '@/types/api';
@@ -107,7 +108,7 @@ export function ScheduleGrid({ posts, timezone }: { posts: ScheduledPost[]; time
   const open = posts.find((p) => p.id === openId);
   const days = Array.from({ length: 15 }, (_, i) => i + 1);
   const dateOf = (d: number) => {
-    const p = posts.find((x) => x.day === d);
+    const p = posts.find((x) => x.day === d && !x.custom) ?? posts.find((x) => x.day === d);
     return p ? formatInTimeZone(new Date(p.scheduled_at), timezone, 'EEE d MMM') : '';
   };
   const rows = ROWS.filter(([key]) => posts.some((p) => p.platform === key));
@@ -182,6 +183,7 @@ export function ScheduleGrid({ posts, timezone }: { posts: ScheduledPost[]; time
       <p className="mt-2 text-xs text-muted">
         All times in {timezone}. Nothing is sent to Metricool until the post is approved.
       </p>
+      <PostTimes posts={posts} timezone={timezone} />
     </div>
   );
 }

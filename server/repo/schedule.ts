@@ -150,8 +150,10 @@ export async function setPostTime(id: string, local: string, actor: string | nul
   }
   const { timezone } = await getSettings(['timezone']);
   const [date, time] = local.split('T') as [string, string];
+  const at = localToUtc(date, time, timezone);
+  if (Date.parse(at) <= Date.now()) throw new HttpError(400, 'Pick a time in the future.');
   await updateOne(T.scheduledPosts, id, {
-    'Scheduled At': localToUtc(date, time, timezone),
+    'Scheduled At': at,
     'Custom Time': true,
     'Publish Status': 'planned',
     'Last Error': null,

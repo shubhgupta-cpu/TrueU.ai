@@ -1,4 +1,4 @@
-// Turns a timed transcript (Transcripts.Segments, written by the Python worker) into what the YouTube
+// Turns the editor's transcript file (PDF / Word / text, read in transcript-file.ts) into what the YouTube
 // metadata prompt needs: real chapter timestamps and a summary of what is actually said in the video.
 // Pure; tested in server/tests/transcripts.test.ts.
 
@@ -34,6 +34,45 @@ export function parseSegments(json: string | null | undefined): Segment[] {
   }
 }
 
+/** A transcript without times has every segment at 0. */
+export const isTimed = (segments: Segment[]): boolean => segments.some((x) => x.e > 0);
+
+const STAMP = /^[[(]?((?:\d{1,2}:)?\d{1,2}:\d{2})(?:[.,]\d+)?[\])]?\s*(?:-->.*?)?[-–—:]?\s*(.*)$/;
+const toSeconds = (stamp: string): number =>
+  stamp.split(':').reduce((n, part) => n * 60 + Number(part), 0);
+
+/**
+ * Reads a transcript's text. Lines that start with a time ("0:42 text", "[00:01:05] text", SRT/VTT cues)
+ * give a timed transcript; plain text becomes untimed paragraphs (summary only: no chapter times can be known).
+ */
+export function segmentsFromText(raw: string): Segment[] {
+  const text = raw.replace(/\r/g, '');
+  const lines = text
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l && l !== 'WEBVTT' && !/^\d+$/.test(l));
+  const timed: Array<{ s: number; t: string }> = [];
+  for (const line of lines) {
+    const m = STAMP.exec(line);
+    if (m) timed.push({ s: toSeconds(m[1]!), t: m[2]!.trim() });
+    else if (timed.length) timed[timed.length - 1]!.t += ` ${line}`;
+  }
+  if (timed.length >= 3) {
+    return timed
+      .filter((x) => x.t)
+      .map((x, i, all) => {
+        const end = all[i + 1]?.s ?? x.s + Math.max(5, x.t.split(/\s+/).length / 2.5);
+        return { s: x.s, e: Math.max(end, x.s + 1), t: x.t };
+      });
+  }
+  // No times: one segment per paragraph.
+  return text
+    .split(/\n\s*\n/)
+    .map((p) => p.replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+    .map((t) => ({ s: 0, e: 0, t }));
+}
+
 /** The first sentence (or the first ~12 words) of a block of speech, as a chapter label. */
 function label(text: string): string {
   const first = text.split(/(?<=[.!?])\s/)[0] ?? text;
@@ -52,7 +91,7 @@ export function chapterCandidates(
   durationSec: number,
   maxChapters = 12,
 ): Array<{ timestamp: string; description: string }> {
-  if (segments.length === 0 || durationSec < 60) return [];
+  if (segments.length === 0 || durationSec < 60 || !isTimed(segments)) return [];
   const target = Math.max(45, durationSec / maxChapters);
   const out: Array<{ timestamp: string; description: string }> = [
     { timestamp: '0:00', description: 'Introduction' },
@@ -71,11 +110,14 @@ export function chapterCandidates(
 export function summaryFromSegments(segments: Segment[], max = 500): string {
   if (segments.length === 0) return '';
   const total = segments.at(-1)!.e || 1;
+  const timed = isTimed(segments);
   const picks: string[] = [];
   // One sentence from each tenth of the video, in order.
   for (let i = 0; i < 10; i++) {
     const from = (total * i) / 10;
-    const seg = segments.find((x) => x.s >= from);
+    const seg = timed
+      ? segments.find((x) => x.s >= from)
+      : segments[Math.floor((segments.length * i) / 10)];
     const sentence = seg ? label(seg.t) : '';
     if (sentence && !picks.includes(sentence)) picks.push(sentence);
   }
@@ -114,7 +156,7 @@ export function applyTranscript<I extends YtInput>(
   video: Video,
   tx: { segments: Segment[]; durationSec: number },
 ): I {
-  const duration = Math.round(tx.durationSec) || input.duration_seconds;
+  const duration = Math.round(tx.durationSec) || input.duration_seconds; // untimed: the script's estimate
   const said = summaryFromSegments(tx.segments, 420);
   return {
     ...input,

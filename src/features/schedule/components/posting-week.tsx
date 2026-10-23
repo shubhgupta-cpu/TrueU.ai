@@ -1,6 +1,7 @@
 import { formatInTimeZone } from 'date-fns-tz';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Select } from '@/components/ui/select';
 import { useBuildSchedule, useSchedule } from '@/features/schedule/api';
 import { addDays, weekdayOf } from '@/lib/schedule';
 
@@ -40,16 +41,11 @@ export function PostingWeek({ projectId }: { projectId: string }) {
   const clash = overlap(week);
 
   return (
-    <div className="space-y-3">
-      <label className="block text-sm font-medium" htmlFor={`week-${projectId}`}>
+    <div className="space-y-2">
+      <label className="block text-sm font-semibold" htmlFor={`week-${projectId}`}>
         Posting week
       </label>
-      <select
-        id={`week-${projectId}`}
-        value={week}
-        onChange={(e) => setPicked(e.target.value)}
-        className="min-h-touch w-full rounded-md border border-line bg-surface px-3 text-sm"
-      >
+      <Select id={`week-${projectId}`} value={week} onChange={(e) => setPicked(e.target.value)}>
         {weeks.map((d) => {
           const o = overlap(d);
           return (
@@ -58,25 +54,24 @@ export function PostingWeek({ projectId }: { projectId: string }) {
             </option>
           );
         })}
-      </select>
+      </Select>
       {clash && (
         <p role="alert" className="text-sm text-warning">
           Overlaps “{titleOf.get(clash[0])}”: posts on the same platform can land close together.
         </p>
       )}
-      <label className="block text-sm font-medium" htmlFor={`weeks-${projectId}`}>
+      <label className="block pt-2 text-sm font-semibold" htmlFor={`weeks-${projectId}`}>
         Spread over
       </label>
-      <select
+      <Select
         id={`weeks-${projectId}`}
         value={weeksLong}
         onChange={(e) => setWeeksLong(Number(e.target.value) as 2 | 3 | 4)}
-        className="min-h-touch w-full rounded-md border border-line bg-surface px-3 text-sm"
       >
-        <option value={2}>2 weeks (the standard plan)</option>
-        <option value={3}>3 weeks (Shorts 2 and 3 a week later)</option>
-        <option value={4}>4 weeks (Shorts 2 and 3 two weeks later)</option>
-      </select>
+        <option value={2}>2 weeks · standard plan</option>
+        <option value={3}>3 weeks · Shorts 2 and 3 a week later</option>
+        <option value={4}>4 weeks · Shorts 2 and 3 two weeks later</option>
+      </Select>
       <Button
         className="w-full"
         disabled={build.isPending}
